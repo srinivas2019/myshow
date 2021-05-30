@@ -1,0 +1,43 @@
+pipeline {
+    agent any 
+    stages {
+        stage("welcome") {
+            steps {
+                echo "welcome to jenkins"
+            }
+        }
+         stage("clone-code") {
+            steps {
+                git 'https://github.com/srinivas2019/javacode.git'
+            }
+        }
+        stage("build-code") {
+            steps {
+                sh "mvn clean package"
+            }
+        }
+        stage("upload-s3"){
+            steps {
+                withCredentials([aws(accessKeyVariable: 'AWS_ACCESS_KEY_ID', credentialsId: 'aws', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                    sh "aws s3 ls"
+                    sh "aws s3 mb s3://krish-21"
+                    sh "aws s3 cp webapp/target/webapp.war s3://krish-21"
+                }
+            }
+        }
+        stage("delivery-nexus") {
+            steps {
+                nexusArtifactUploader artifacts: [[artifactId: 'paytm-tata', classifier: '', file: 'webapp/target/webapp.war', type: 'war']], credentialsId: 'jen-nex', groupId: 'paytm', nexusUrl: '3.141.40.73:8081', nexusVersion: 'nexus3', protocol: 'http', repository: 'nexa', version: '1.0-SNAPSHOT'
+            }
+        }
+        stage("deploy-tomcat") {
+            steps {
+                sshagent(['tomcat-tom']) {
+                    sh "scp -o StrictHostKeyChecking=no webapp/target/webapp.war  ec2-user@10.0.0.172:/opt/tomcat-10/webapps"
+                }
+              
+            }
+        }
+       
+    }
+}
